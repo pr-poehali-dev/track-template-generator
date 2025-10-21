@@ -22,6 +22,8 @@ interface ProcessedFile {
   processedFile?: File;
   info?: any;
   error?: string;
+  uploadProgress?: number;
+  processingProgress?: number;
 }
 
 const Process = () => {
@@ -53,6 +55,8 @@ const Process = () => {
       originalName: file.name,
       type: file.type,
       status: 'processing',
+      uploadProgress: 0,
+      processingProgress: 0,
     };
 
     setFiles(prev => prev.map(f => f.id === file.id ? processedFile : f));
@@ -60,23 +64,47 @@ const Process = () => {
     try {
       const reader = new FileReader();
       
+      reader.onprogress = (event) => {
+        if (event.lengthComputable) {
+          const progress = Math.round((event.loaded / event.total) * 100);
+          setFiles(prev => prev.map(f => 
+            f.id === file.id ? { ...f, uploadProgress: progress } : f
+          ));
+        }
+      };
+      
       const base64Promise = new Promise<string>((resolve) => {
         reader.onload = () => {
           const base64 = (reader.result as string).split(',')[1];
+          setFiles(prev => prev.map(f => 
+            f.id === file.id ? { ...f, uploadProgress: 100, processingProgress: 10 } : f
+          ));
           resolve(base64);
         };
         reader.readAsDataURL(file.file);
       });
 
       const base64 = await base64Promise;
+      
+      setFiles(prev => prev.map(f => 
+        f.id === file.id ? { ...f, processingProgress: 30 } : f
+      ));
 
       if (file.type === 'audio') {
+        setFiles(prev => prev.map(f => 
+          f.id === file.id ? { ...f, processingProgress: 50 } : f
+        ));
+        
         const response = await fetch('https://functions.poehali.dev/75884e87-b899-4bd2-824d-3b7356d69d69', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: base64
         });
 
+        setFiles(prev => prev.map(f => 
+          f.id === file.id ? { ...f, processingProgress: 80 } : f
+        ));
+        
         const data = await response.json();
         const wavBlob = await fetch(`data:audio/wav;base64,${data.audio}`).then(r => r.blob());
         const wavFile = new File([wavBlob], file.name.replace(/\.[^/.]+$/, '.wav'), { type: 'audio/wav' });
@@ -86,12 +114,20 @@ const Process = () => {
         processedFile.processedFile = wavFile;
         processedFile.info = data;
       } else {
+        setFiles(prev => prev.map(f => 
+          f.id === file.id ? { ...f, processingProgress: 50 } : f
+        ));
+        
         const response = await fetch('https://functions.poehali.dev/e2626348-12c7-483d-8b73-dd5c187fb154', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: base64
         });
 
+        setFiles(prev => prev.map(f => 
+          f.id === file.id ? { ...f, processingProgress: 80 } : f
+        ));
+        
         const data = await response.json();
         const imgBlob = await fetch(`data:image/jpeg;base64,${data.image}`).then(r => r.blob());
         const imgFile = new File([imgBlob], file.name.replace(/\.[^/.]+$/, '.jpg'), { type: 'image/jpeg' });
@@ -216,7 +252,23 @@ const Process = () => {
                     )}
                     
                     {file.status === 'processing' && (
-                      <p className="text-[#FF6B00] text-sm">⚙️ Обрабатывается...</p>
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2">
+                          <div className="animate-spin">
+                            <Icon name="Loader2" size={16} className="text-[#FF6B00]" />
+                          </div>
+                          <p className="text-[#FF6B00] text-sm font-medium">
+                            {file.uploadProgress !== undefined && file.uploadProgress < 100
+                              ? `Загрузка: ${file.uploadProgress}%`
+                              : file.processingProgress !== undefined
+                              ? `Обработка: ${file.processingProgress}%`
+                              : 'Обрабатывается...'}
+                          </p>
+                        </div>
+                        {file.processingProgress !== undefined && (
+                          <Progress value={file.processingProgress} className="h-1.5" />
+                        )}
+                      </div>
                     )}
                     
                     {file.status === 'completed' && file.info && (

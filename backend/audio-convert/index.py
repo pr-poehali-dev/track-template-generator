@@ -1,6 +1,7 @@
 import json
 import base64
 import io
+import gzip
 from typing import Dict, Any
 
 def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
@@ -18,7 +19,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             'headers': {
                 'Access-Control-Allow-Origin': '*',
                 'Access-Control-Allow-Methods': 'POST, OPTIONS',
-                'Access-Control-Allow-Headers': 'Content-Type',
+                'Access-Control-Allow-Headers': 'Content-Type, Content-Encoding',
                 'Access-Control-Max-Age': '86400'
             },
             'body': '',
@@ -34,6 +35,8 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         }
     
     body_data = event.get('body', '')
+    headers = event.get('headers', {})
+    is_compressed = headers.get('content-encoding', '').lower() == 'gzip'
     
     if not body_data:
         return {
@@ -44,13 +47,17 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         }
     
     try:
-        audio_bytes = base64.b64decode(body_data)
+        decoded_data = base64.b64decode(body_data)
+        if is_compressed:
+            audio_bytes = gzip.decompress(decoded_data)
+        else:
+            audio_bytes = decoded_data
     except Exception as e:
         return {
             'statusCode': 400,
             'headers': {'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json'},
             'isBase64Encoded': False,
-            'body': json.dumps({'error': f'Invalid encoding: {str(e)}'})
+            'body': json.dumps({'error': f'Decompression error: {str(e)}'})
         }
     
     try:

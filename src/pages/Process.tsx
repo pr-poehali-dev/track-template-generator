@@ -4,6 +4,7 @@ import Icon from '@/components/ui/icon';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
+import pako from 'pako';
 
 interface UploadedFile {
   id: string;
@@ -66,16 +67,23 @@ const Process = () => {
       ));
 
       const arrayBuffer = await file.file.arrayBuffer();
+      const uint8Array = new Uint8Array(arrayBuffer);
       
       setFiles(prev => prev.map(f => 
-        f.id === file.id ? { ...f, progress: 30 } : f
+        f.id === file.id ? { ...f, progress: 20, info: { originalSize: (uint8Array.length / (1024 * 1024)).toFixed(2) } } : f
       ));
 
-      const uint8Array = new Uint8Array(arrayBuffer);
+      const compressed = pako.gzip(uint8Array);
+      const compressionRatio = ((1 - compressed.length / uint8Array.length) * 100).toFixed(1);
+      
+      setFiles(prev => prev.map(f => 
+        f.id === file.id ? { ...f, progress: 35, info: { ...f.info, compressedSize: (compressed.length / (1024 * 1024)).toFixed(2), compressionRatio } } : f
+      ));
+
       let binary = '';
       const chunkSize = 8192;
-      for (let i = 0; i < uint8Array.length; i += chunkSize) {
-        const chunk = uint8Array.subarray(i, Math.min(i + chunkSize, uint8Array.length));
+      for (let i = 0; i < compressed.length; i += chunkSize) {
+        const chunk = compressed.subarray(i, Math.min(i + chunkSize, compressed.length));
         binary += String.fromCharCode.apply(null, Array.from(chunk));
       }
       const base64 = btoa(binary);
@@ -90,7 +98,10 @@ const Process = () => {
 
       const response = await fetch(url, {
         method: 'POST',
-        headers: { 'Content-Type': 'text/plain' },
+        headers: { 
+          'Content-Type': 'text/plain',
+          'Content-Encoding': 'gzip'
+        },
         body: base64
       });
 

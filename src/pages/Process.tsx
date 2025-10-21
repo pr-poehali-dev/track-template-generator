@@ -61,6 +61,13 @@ const Process = () => {
     setFiles(prev => prev.map(f => f.id === file.id ? processedFile : f));
 
     try {
+      const maxSizeMB = file.type === 'audio' ? 50 : 10;
+      const fileSizeMB = file.file.size / (1024 * 1024);
+      
+      if (fileSizeMB > maxSizeMB) {
+        throw new Error(`Файл слишком большой (${fileSizeMB.toFixed(1)} МБ). Максимум: ${maxSizeMB} МБ`);
+      }
+
       setFiles(prev => prev.map(f => 
         f.id === file.id ? { ...f, progress: 10 } : f
       ));
@@ -95,7 +102,14 @@ const Process = () => {
       });
 
       if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
+        const errorText = await response.text().catch(() => 'Неизвестная ошибка');
+        if (response.status === 413) {
+          throw new Error('Файл слишком большой для обработки');
+        } else if (response.status === 400) {
+          throw new Error('Неверный формат файла');
+        } else {
+          throw new Error(`Ошибка сервера (${response.status})`);
+        }
       }
 
       setFiles(prev => prev.map(f => 

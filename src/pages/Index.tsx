@@ -24,50 +24,118 @@ const Index = () => {
   const [audioFile, setAudioFile] = useState<File | null>(null);
   const [trackName, setTrackName] = useState('');
   const [lyrics, setLyrics] = useState('');
+  const [isProcessing, setIsProcessing] = useState(false);
 
-  const handleCoverUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleCoverUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       if (!file.type.startsWith('image/')) {
         toast.error('Загрузите изображение');
         return;
       }
-      setCoverFile(file);
-      toast.success('Обложка загружена');
+      
+      toast.loading('Изменяю размер до 1500×1500...');
+      
+      try {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        
+        reader.onload = async () => {
+          const base64 = (reader.result as string).split(',')[1];
+          
+          const response = await fetch('https://functions.poehali.dev/e2626348-12c7-483d-8b73-dd5c187fb154', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: base64
+          });
+          
+          const data = await response.json();
+          
+          const resizedBlob = await fetch(`data:image/jpeg;base64,${data.image}`).then(r => r.blob());
+          const resizedFile = new File([resizedBlob], file.name, { type: 'image/jpeg' });
+          
+          setCoverFile(resizedFile);
+          toast.success('Обложка обработана: 1500×1500px');
+        };
+      } catch (error) {
+        toast.error('Ошибка обработки обложки');
+        console.error(error);
+      }
     }
   };
 
-  const handleAudioUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAudioUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       if (!file.type.startsWith('audio/')) {
         toast.error('Загрузите аудиофайл');
         return;
       }
-      setAudioFile(file);
+      
       setTrackName(file.name.replace(/\.[^/.]+$/, ''));
-      toast.success('Аудио загружено');
+      toast.loading('Конвертирую в WAV стерео...');
+      
+      try {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        
+        reader.onload = async () => {
+          const base64 = (reader.result as string).split(',')[1];
+          
+          const response = await fetch('https://functions.poehali.dev/75884e87-b899-4bd2-824d-3b7356d69d69', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: base64
+          });
+          
+          const data = await response.json();
+          
+          const wavBlob = await fetch(`data:audio/wav;base64,${data.audio}`).then(r => r.blob());
+          const wavFile = new File([wavBlob], file.name.replace(/\.[^/.]+$/, '.wav'), { type: 'audio/wav' });
+          
+          setAudioFile(wavFile);
+          toast.success(`Аудио конвертировано: WAV стерео, ${data.duration}`);
+        };
+      } catch (error) {
+        toast.error('Ошибка конвертации аудио');
+        console.error(error);
+      }
     }
   };
 
-  const processTrack = () => {
+  const processTrack = async () => {
     if (!coverFile || !audioFile || !trackName) {
       toast.error('Заполните все поля');
       return;
     }
 
-    const newTrack: Track = {
-      id: Date.now().toString(),
-      name: trackName,
-      cover: URL.createObjectURL(coverFile),
-      audio: URL.createObjectURL(audioFile),
-      lyrics: lyrics,
-      duration: '3:45'
-    };
+    setIsProcessing(true);
+    
+    try {
+      const newTrack: Track = {
+        id: Date.now().toString(),
+        name: trackName,
+        cover: URL.createObjectURL(coverFile),
+        audio: URL.createObjectURL(audioFile),
+        lyrics: lyrics,
+        duration: '3:45'
+      };
 
-    setTracks([newTrack, ...tracks]);
-    setCurrentTrack(newTrack);
-    toast.success('Трек обработан и добавлен в библиотеку');
+      setTracks([newTrack, ...tracks]);
+      setCurrentTrack(newTrack);
+      toast.success('Трек обработан и добавлен в библиотеку');
+      
+      setCoverFile(null);
+      setAudioFile(null);
+      setTrackName('');
+      setLyrics('');
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   const copyLyrics = () => {
@@ -193,10 +261,20 @@ const Index = () => {
 
                 <Button
                   onClick={processTrack}
-                  className="w-full bg-[#FF6B00] hover:bg-[#FF6B00]/90 text-white h-12 text-base font-medium"
+                  disabled={isProcessing || !coverFile || !audioFile || !trackName}
+                  className="w-full bg-[#FF6B00] hover:bg-[#FF6B00]/90 text-white h-12 text-base font-medium disabled:opacity-50"
                 >
-                  <Icon name="Check" size={20} className="mr-2" />
-                  Обработать трек
+                  {isProcessing ? (
+                    <>
+                      <Icon name="Loader2" size={20} className="mr-2 animate-spin" />
+                      Обработка...
+                    </>
+                  ) : (
+                    <>
+                      <Icon name="Check" size={20} className="mr-2" />
+                      Обработать трек
+                    </>
+                  )}
                 </Button>
               </div>
             </Card>

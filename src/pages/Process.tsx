@@ -262,12 +262,27 @@ const Process = () => {
                     )}
                     
                     {file.status === 'completed' && file.info && (
-                      <div className="space-y-1">
+                      <div className="space-y-2">
                         <p className="text-green-400 text-sm">✅ Готово!</p>
                         {file.type === 'audio' ? (
-                          <div className="text-xs text-gray-400 space-y-1">
-                            <p>Формат: WAV Stereo | Частота: 44.1kHz | 16-bit</p>
-                            <p>Длительность: {file.info.duration} | Размер: {file.info.fileSizeMB} MB</p>
+                          <div className="space-y-2">
+                            <div className="text-xs text-gray-400 space-y-1">
+                              <p>Формат: WAV Stereo | Частота: 44.1kHz | 16-bit</p>
+                              <p>Длительность: {file.info.duration} | Размер: {file.info.fileSizeMB} MB</p>
+                            </div>
+                            {file.processedUrl && (
+                              <div className="bg-[#0a0a0a]/50 rounded-lg p-3 mt-2">
+                                <audio
+                                  controls
+                                  src={file.processedUrl}
+                                  className="w-full"
+                                  style={{
+                                    filter: 'invert(1) hue-rotate(180deg)',
+                                    height: '32px'
+                                  }}
+                                />
+                              </div>
+                            )}
                           </div>
                         ) : (
                           <div className="text-xs text-gray-400 space-y-1">

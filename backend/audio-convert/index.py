@@ -1,16 +1,14 @@
 import json
 import base64
 import io
-import wave
-import struct
 from typing import Dict, Any
 
 def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     '''
-    Business: Convert audio files to WAV stereo format with professional settings
-    Args: event - dict with httpMethod, body (base64 encoded audio file)
+    Business: Professional audio conversion to WAV Stereo 44.1kHz 16-bit format
+    Args: event - dict with httpMethod, body (base64 encoded audio)
           context - object with request_id, function_name
-    Returns: HTTP response with converted WAV file in base64
+    Returns: HTTP response with professional WAV file
     '''
     method: str = event.get('httpMethod', 'POST')
     
@@ -20,7 +18,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             'headers': {
                 'Access-Control-Allow-Origin': '*',
                 'Access-Control-Allow-Methods': 'POST, OPTIONS',
-                'Access-Control-Allow-Headers': 'Content-Type, X-File-Name',
+                'Access-Control-Allow-Headers': 'Content-Type',
                 'Access-Control-Max-Age': '86400'
             },
             'body': '',
@@ -36,105 +34,87 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         }
     
     body_data = event.get('body', '')
-    is_base64_input = event.get('isBase64Encoded', False)
     
     if not body_data:
         return {
             'statusCode': 400,
             'headers': {'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json'},
             'isBase64Encoded': False,
-            'body': json.dumps({'error': 'No audio data provided'})
+            'body': json.dumps({'error': 'No audio data'})
         }
     
     try:
-        if is_base64_input:
-            audio_bytes = base64.b64decode(body_data)
-        else:
-            audio_bytes = base64.b64decode(body_data)
+        audio_bytes = base64.b64decode(body_data)
     except Exception as e:
         return {
             'statusCode': 400,
             'headers': {'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json'},
             'isBase64Encoded': False,
-            'body': json.dumps({'error': f'Invalid data encoding: {str(e)}'})
+            'body': json.dumps({'error': f'Invalid encoding: {str(e)}'})
         }
     
     try:
+        import soundfile as sf
         import numpy as np
-    except ImportError:
+    except ImportError as e:
         return {
             'statusCode': 500,
             'headers': {'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json'},
             'isBase64Encoded': False,
-            'body': json.dumps({'error': 'NumPy not available'})
+            'body': json.dumps({'error': f'Missing library: {str(e)}'})
         }
     
     audio_buffer = io.BytesIO(audio_bytes)
     
     try:
-        with wave.open(audio_buffer, 'rb') as wav_in:
-            nchannels = wav_in.getnchannels()
-            sampwidth = wav_in.getsampwidth()
-            framerate = wav_in.getframerate()
-            nframes = wav_in.getnframes()
-            audio_data = wav_in.readframes(nframes)
-    except:
-        try:
-            import soundfile as sf
-            audio_buffer.seek(0)
-            data, samplerate = sf.read(audio_buffer)
-            if len(data.shape) == 1:
-                data = np.column_stack((data, data))
-            elif data.shape[1] == 1:
-                data = np.column_stack((data, data))
-            
-            nchannels = 2
-            framerate = samplerate
-            nframes = len(data)
-            audio_data = (data * 32767).astype(np.int16).tobytes()
-        except Exception as e:
-            return {
-                'statusCode': 400,
-                'headers': {'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json'},
-                'isBase64Encoded': False,
-                'body': json.dumps({'error': f'Invalid audio file: {str(e)}'})
-            }
+        data, original_sr = sf.read(audio_buffer, dtype='float32')
+    except Exception as e:
+        return {
+            'statusCode': 400,
+            'headers': {'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json'},
+            'isBase64Encoded': False,
+            'body': json.dumps({'error': f'Invalid audio: {str(e)}'})
+        }
     
-    original_channels = nchannels
-    original_sample_rate = framerate
-    original_duration = nframes / framerate
+    original_channels = 1 if len(data.shape) == 1 else data.shape[1]
+    original_duration = len(data) / original_sr
     
-    samples = np.frombuffer(audio_data, dtype=np.int16)
+    if len(data.shape) == 1:
+        data = np.stack([data, data], axis=1)
+    elif data.shape[1] == 1:
+        data = np.concatenate([data, data], axis=1)
+    elif data.shape[1] > 2:
+        data = data[:, :2]
     
-    if nchannels == 1:
-        samples = np.repeat(samples, 2)
-        nchannels = 2
-    elif nchannels == 2:
-        pass
-    else:
-        samples = samples[:len(samples) // nchannels * 2].reshape(-1, nchannels)[:, :2].flatten()
-        nchannels = 2
+    target_sr = 44100
+    if original_sr != target_sr:
+        num_samples = int(len(data) * target_sr / original_sr)
+        resampled = np.zeros((num_samples, 2), dtype=np.float32)
+        for ch in range(2):
+            resampled[:, ch] = np.interp(
+                np.linspace(0, len(data) - 1, num_samples),
+                np.arange(len(data)),
+                data[:, ch]
+            )
+        data = resampled
     
-    if framerate != 44100:
-        num_samples = int(len(samples) * 44100 / framerate)
-        samples = np.interp(
-            np.linspace(0, len(samples) - 1, num_samples),
-            np.arange(len(samples)),
-            samples
-        ).astype(np.int16)
-        framerate = 44100
+    peak = np.abs(data).max()
+    if peak > 0:
+        data = data / peak * 0.95
     
     output_buffer = io.BytesIO()
-    with wave.open(output_buffer, 'wb') as wav_out:
-        wav_out.setnchannels(2)
-        wav_out.setsampwidth(2)
-        wav_out.setframerate(44100)
-        wav_out.writeframes(samples.tobytes())
+    sf.write(
+        output_buffer,
+        data,
+        target_sr,
+        subtype='PCM_16',
+        format='WAV'
+    )
     
     output_buffer.seek(0)
     wav_base64 = base64.b64encode(output_buffer.read()).decode('utf-8')
     
-    duration_seconds = len(samples) / 2 / 44100
+    duration_seconds = len(data) / target_sr
     minutes = int(duration_seconds // 60)
     seconds = int(duration_seconds % 60)
     duration_str = f"{minutes}:{seconds:02d}"
@@ -160,7 +140,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             'fileSizeMB': round(file_size_mb, 2),
             'original': {
                 'channels': original_channels,
-                'sampleRate': original_sample_rate,
+                'sampleRate': int(original_sr),
                 'duration': round(original_duration, 2)
             }
         })

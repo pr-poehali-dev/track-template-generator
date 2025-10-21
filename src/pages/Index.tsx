@@ -1,27 +1,12 @@
 import { useState, useRef, useEffect } from 'react';
-import { Card } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Label } from '@/components/ui/label';
 import Icon from '@/components/ui/icon';
 import { toast } from 'sonner';
-
-interface Track {
-  id: string;
-  name: string;
-  cover: string;
-  audio: string;
-  lyrics: string;
-  duration: string;
-}
-
-interface CoverImage {
-  id: string;
-  url: string;
-  file: File;
-}
+import { Track, CoverImage } from '@/components/TrackStudio/types';
+import UploadTab from '@/components/TrackStudio/UploadTab';
+import EditorTab from '@/components/TrackStudio/EditorTab';
+import LibraryTab from '@/components/TrackStudio/LibraryTab';
+import PreviewTab from '@/components/TrackStudio/PreviewTab';
 
 const Index = () => {
   const [tracks, setTracks] = useState<Track[]>([]);
@@ -204,7 +189,8 @@ const Index = () => {
   };
 
   const copyLyrics = () => {
-    const monoText = lyrics.replace(/\n+/g, ' ').replace(/\s+/g, ' ').trim();
+    if (!currentTrack) return;
+    const monoText = currentTrack.lyrics.replace(/\n+/g, ' ').replace(/\s+/g, ' ').trim();
     navigator.clipboard.writeText(monoText);
     toast.success('Текст скопирован в моно-формате');
   };
@@ -258,319 +244,46 @@ const Index = () => {
           </TabsList>
 
           <TabsContent value="upload" className="space-y-6 animate-fade-in">
-            <Card className="max-w-3xl mx-auto bg-[#16213E] border-[#EAEAEA]/10 p-8">
-              <div className="space-y-8">
-                <div>
-                  <Label className="text-gray-300 mb-3 block">Обложка трека</Label>
-                  <div className="border-2 border-dashed border-[#FF6B00]/30 rounded-lg p-8 hover:border-[#FF6B00]/60 transition-all cursor-pointer bg-[#FF6B00]/5">
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={handleCoverUpload}
-                      className="hidden"
-                      id="cover-upload"
-                    />
-                    <label htmlFor="cover-upload" className="cursor-pointer block text-center">
-                      <Icon name="Image" size={48} className="mx-auto mb-3 text-[#FF6B00]" />
-                      <p className="text-sm text-gray-300 mb-1">
-                        {coverFile ? coverFile.name : 'Загрузить обложку'}
-                      </p>
-                      <p className="text-xs text-gray-500">Автоматически изменится до 1500×1500px</p>
-                    </label>
-                  </div>
-                  
-                  {uploadedCovers.length > 0 && (
-                    <div className="mt-4">
-                      <Label className="text-gray-300 mb-3 block text-sm">Загруженные обложки (клик = скачать)</Label>
-                      <div className="flex gap-3 overflow-x-auto pb-2">
-                        {uploadedCovers.map((cover) => (
-                          <div
-                            key={cover.id}
-                            onClick={() => selectCover(cover)}
-                            className={`flex-shrink-0 w-24 h-24 rounded-lg cursor-pointer transition-all hover:scale-105 ${
-                              selectedCoverId === cover.id
-                                ? 'ring-2 ring-[#FF6B00] ring-offset-2 ring-offset-[#16213E]'
-                                : 'opacity-60 hover:opacity-100'
-                            }`}
-                          >
-                            <img
-                              src={cover.url}
-                              alt="Cover"
-                              className="w-full h-full object-cover rounded-lg"
-                            />
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                <div>
-                  <Label className="text-gray-300 mb-3 block">Аудиофайл</Label>
-                  <div className="border-2 border-dashed border-[#FF6B00]/30 rounded-lg p-8 hover:border-[#FF6B00]/60 transition-all cursor-pointer bg-[#FF6B00]/5">
-                    <input
-                      type="file"
-                      accept="audio/*"
-                      onChange={handleAudioUpload}
-                      className="hidden"
-                      id="audio-upload"
-                    />
-                    <label htmlFor="audio-upload" className="cursor-pointer block text-center">
-                      <Icon name="Music" size={48} className="mx-auto mb-3 text-[#FF6B00]" />
-                      <p className="text-sm text-gray-300 mb-1">
-                        {audioFile ? audioFile.name : 'Загрузить аудио'}
-                      </p>
-                      <p className="text-xs text-gray-500">Конвертируется в WAV стерео</p>
-                    </label>
-                  </div>
-                </div>
-
-                <div>
-                  <Label htmlFor="track-name" className="text-gray-300 mb-3 block">Название трека</Label>
-                  <Input
-                    id="track-name"
-                    value={trackName}
-                    onChange={(e) => setTrackName(e.target.value)}
-                    placeholder="Введите название"
-                    className="bg-[#0a0a0a] border-[#EAEAEA]/10 text-white placeholder:text-gray-600"
-                  />
-                </div>
-
-                <div>
-                  <Label htmlFor="lyrics" className="text-gray-300 mb-3 block">Текст трека</Label>
-                  <Textarea
-                    id="lyrics"
-                    value={lyrics}
-                    onChange={(e) => setLyrics(e.target.value)}
-                    placeholder="Вставьте текст трека..."
-                    rows={8}
-                    className="bg-[#0a0a0a] border-[#EAEAEA]/10 text-white placeholder:text-gray-600 font-mono text-sm"
-                  />
-                  <p className="text-xs text-gray-500 mt-2">Будет преобразован в моно-текст для копирования</p>
-                </div>
-
-                <Button
-                  onClick={processTrack}
-                  disabled={isProcessing || !coverFile || !audioFile || !trackName}
-                  className="w-full bg-[#FF6B00] hover:bg-[#FF6B00]/90 text-white h-12 text-base font-medium disabled:opacity-50"
-                >
-                  {isProcessing ? (
-                    <>
-                      <Icon name="Loader2" size={20} className="mr-2 animate-spin" />
-                      Обработка...
-                    </>
-                  ) : (
-                    <>
-                      <Icon name="Check" size={20} className="mr-2" />
-                      Обработать трек
-                    </>
-                  )}
-                </Button>
-              </div>
-            </Card>
+            <UploadTab
+              coverFile={coverFile}
+              audioFile={audioFile}
+              trackName={trackName}
+              lyrics={lyrics}
+              isProcessing={isProcessing}
+              uploadedCovers={uploadedCovers}
+              selectedCoverId={selectedCoverId}
+              onCoverUpload={handleCoverUpload}
+              onAudioUpload={handleAudioUpload}
+              onTrackNameChange={setTrackName}
+              onLyricsChange={setLyrics}
+              onSelectCover={selectCover}
+              onProcessTrack={processTrack}
+            />
           </TabsContent>
 
           <TabsContent value="editor" className="space-y-6 animate-fade-in">
-            <Card className="max-w-3xl mx-auto bg-[#16213E] border-[#EAEAEA]/10 p-8">
-              {currentTrack ? (
-                <div className="space-y-6">
-                  <div className="flex items-start gap-6">
-                    <img
-                      src={currentTrack.cover}
-                      alt={currentTrack.name}
-                      className="w-32 h-32 rounded-lg object-cover border-2 border-[#FF6B00]/30"
-                    />
-                    <div className="flex-1">
-                      <Input
-                        value={currentTrack.name}
-                        className="bg-[#0a0a0a] border-[#EAEAEA]/10 text-white text-lg font-medium mb-3"
-                        onChange={(e) => {
-                          setCurrentTrack({ ...currentTrack, name: e.target.value });
-                        }}
-                      />
-                      <div className="flex items-center gap-4 text-sm text-gray-400">
-                        <span className="flex items-center gap-1">
-                          <Icon name="Clock" size={14} />
-                          {currentTrack.duration}
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <Icon name="Music" size={14} />
-                          WAV Stereo
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="bg-[#0a0a0a] rounded-lg p-6 border border-[#EAEAEA]/10">
-                    <audio ref={audioRef} src={currentTrack.audio} className="hidden" />
-                    
-                    <div className="flex items-center justify-between mb-4">
-                      <Label className="text-gray-300">Аудио плеер</Label>
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs text-gray-400">
-                          {Math.floor(currentTime / 60)}:{Math.floor(currentTime % 60).toString().padStart(2, '0')} / {Math.floor(duration / 60)}:{Math.floor(duration % 60).toString().padStart(2, '0')}
-                        </span>
-                        <Button 
-                          onClick={togglePlayPause}
-                          variant="outline" 
-                          size="sm" 
-                          className="border-[#EAEAEA]/10 text-gray-300"
-                        >
-                          <Icon name={isPlaying ? "Pause" : "Play"} size={14} className="mr-1" />
-                          {isPlaying ? 'Пауза' : 'Играть'}
-                        </Button>
-                      </div>
-                    </div>
-                    
-                    <div className="h-24 flex items-center justify-center gap-1 px-4 relative">
-                      {Array.from({ length: 80 }).map((_, i) => {
-                        const progress = duration > 0 ? currentTime / duration : 0;
-                        const barProgress = i / 80;
-                        const isActive = barProgress <= progress;
-                        
-                        return (
-                          <div
-                            key={i}
-                            className={`w-1 rounded-full transition-all ${
-                              isActive ? 'bg-[#FF6B00]' : 'bg-[#FF6B00]/30'
-                            }`}
-                            style={{
-                              height: `${Math.random() * 60 + 20}%`,
-                              opacity: isActive ? 0.8 + Math.random() * 0.2 : 0.3 + Math.random() * 0.3
-                            }}
-                          />
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  <div>
-                    <div className="flex items-center justify-between mb-3">
-                      <Label className="text-gray-300">Текст трека</Label>
-                      <Button
-                        onClick={copyLyrics}
-                        variant="outline"
-                        size="sm"
-                        className="border-[#EAEAEA]/10 text-gray-300"
-                      >
-                        <Icon name="Copy" size={14} className="mr-1" />
-                        Скопировать моно-текст
-                      </Button>
-                    </div>
-                    <Textarea
-                      value={currentTrack.lyrics}
-                      onChange={(e) => setCurrentTrack({ ...currentTrack, lyrics: e.target.value })}
-                      rows={6}
-                      className="bg-[#0a0a0a] border-[#EAEAEA]/10 text-white font-mono text-sm"
-                    />
-                  </div>
-                </div>
-              ) : (
-                <div className="text-center py-12">
-                  <Icon name="FileMusic" size={64} className="mx-auto mb-4 text-gray-600" />
-                  <p className="text-gray-400">Загрузите трек для редактирования</p>
-                </div>
-              )}
-            </Card>
+            <EditorTab
+              currentTrack={currentTrack}
+              isPlaying={isPlaying}
+              currentTime={currentTime}
+              duration={duration}
+              audioRef={audioRef}
+              onTrackUpdate={setCurrentTrack}
+              onTogglePlayPause={togglePlayPause}
+              onCopyLyrics={copyLyrics}
+            />
           </TabsContent>
 
           <TabsContent value="library" className="space-y-6 animate-fade-in">
-            <div className="max-w-5xl mx-auto">
-              {tracks.length === 0 ? (
-                <Card className="bg-[#16213E] border-[#EAEAEA]/10 p-12 text-center">
-                  <Icon name="Library" size={64} className="mx-auto mb-4 text-gray-600" />
-                  <p className="text-gray-400">Библиотека пуста</p>
-                  <p className="text-sm text-gray-600 mt-2">Обработанные треки появятся здесь</p>
-                </Card>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {tracks.map((track) => (
-                    <Card
-                      key={track.id}
-                      className="bg-[#16213E] border-[#EAEAEA]/10 p-4 hover:border-[#FF6B00]/30 transition-all cursor-pointer group"
-                      onClick={() => setCurrentTrack(track)}
-                    >
-                      <div className="flex items-start gap-4">
-                        <div className="relative">
-                          <img
-                            src={track.cover}
-                            alt={track.name}
-                            className="w-20 h-20 rounded-lg object-cover"
-                          />
-                          <div className="absolute inset-0 bg-[#FF6B00]/0 group-hover:bg-[#FF6B00]/20 rounded-lg transition-all flex items-center justify-center">
-                            <Icon name="Play" size={24} className="text-white opacity-0 group-hover:opacity-100 transition-opacity" />
-                          </div>
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <h3 className="font-medium text-white truncate mb-1">{track.name}</h3>
-                          <p className="text-sm text-gray-400 mb-3">{track.duration}</p>
-                          <Button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              downloadTrack(track);
-                            }}
-                            size="sm"
-                            className="bg-[#FF6B00] hover:bg-[#FF6B00]/90 text-white"
-                          >
-                            <Icon name="Download" size={14} className="mr-1" />
-                            Экспорт
-                          </Button>
-                        </div>
-                      </div>
-                    </Card>
-                  ))}
-                </div>
-              )}
-            </div>
+            <LibraryTab
+              tracks={tracks}
+              onSelectTrack={setCurrentTrack}
+              onDownloadTrack={downloadTrack}
+            />
           </TabsContent>
 
           <TabsContent value="preview" className="space-y-6 animate-fade-in">
-            <Card className="max-w-3xl mx-auto bg-[#16213E] border-[#EAEAEA]/10 p-8">
-              {currentTrack ? (
-                <div className="space-y-6">
-                  <div className="text-center">
-                    <h3 className="text-sm text-gray-400 mb-4">Предпросмотр релиза</h3>
-                    <div className="inline-block bg-gradient-to-br from-[#FF6B00] to-[#FF6B00]/60 p-1 rounded-2xl shadow-2xl">
-                      <img
-                        src={currentTrack.cover}
-                        alt={currentTrack.name}
-                        className="w-80 h-80 rounded-xl object-cover"
-                      />
-                    </div>
-                    <h2 className="text-2xl font-bold text-white mt-6 mb-2">{currentTrack.name}</h2>
-                    <p className="text-gray-400">WAV Stereo · {currentTrack.duration}</p>
-                  </div>
-
-                  <div className="bg-[#0a0a0a] rounded-lg p-6 border border-[#EAEAEA]/10">
-                    <h4 className="text-sm font-medium text-gray-300 mb-3">Параметры экспорта</h4>
-                    <div className="space-y-2 text-sm">
-                      <div className="flex justify-between">
-                        <span className="text-gray-400">Обложка:</span>
-                        <span className="text-white">1500×1500px, JPG</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-400">Аудио:</span>
-                        <span className="text-white">WAV Stereo, 44.1kHz</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-400">Текст:</span>
-                        <span className="text-white">Моно-формат, UTF-8</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <Button className="w-full bg-[#FF6B00] hover:bg-[#FF6B00]/90 text-white h-12 text-base font-medium">
-                    <Icon name="Download" size={20} className="mr-2" />
-                    Экспортировать релиз
-                  </Button>
-                </div>
-              ) : (
-                <div className="text-center py-12">
-                  <Icon name="Eye" size={64} className="mx-auto mb-4 text-gray-600" />
-                  <p className="text-gray-400">Выберите трек для предпросмотра</p>
-                </div>
-              )}
-            </Card>
+            <PreviewTab currentTrack={currentTrack} />
           </TabsContent>
         </Tabs>
       </div>

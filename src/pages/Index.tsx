@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -17,6 +17,12 @@ interface Track {
   duration: string;
 }
 
+interface CoverImage {
+  id: string;
+  url: string;
+  file: File;
+}
+
 const Index = () => {
   const [tracks, setTracks] = useState<Track[]>([]);
   const [currentTrack, setCurrentTrack] = useState<Track | null>(null);
@@ -25,6 +31,12 @@ const Index = () => {
   const [trackName, setTrackName] = useState('');
   const [lyrics, setLyrics] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [uploadedCovers, setUploadedCovers] = useState<CoverImage[]>([]);
+  const [selectedCoverId, setSelectedCoverId] = useState<string | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
 
   const handleCoverUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -56,7 +68,15 @@ const Index = () => {
           const resizedBlob = await fetch(`data:image/jpeg;base64,${data.image}`).then(r => r.blob());
           const resizedFile = new File([resizedBlob], file.name, { type: 'image/jpeg' });
           
+          const newCover: CoverImage = {
+            id: Date.now().toString(),
+            url: URL.createObjectURL(resizedFile),
+            file: resizedFile
+          };
+          
+          setUploadedCovers(prev => [...prev, newCover]);
           setCoverFile(resizedFile);
+          setSelectedCoverId(newCover.id);
           toast.success('Обложка обработана: 1500×1500px');
         };
       } catch (error) {
@@ -65,6 +85,51 @@ const Index = () => {
       }
     }
   };
+
+  const selectCover = async (cover: CoverImage) => {
+    setSelectedCoverId(cover.id);
+    setCoverFile(cover.file);
+    
+    const link = document.createElement('a');
+    link.href = cover.url;
+    link.download = `cover-1500x1500-${Date.now()}.jpg`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    toast.success('Обложка скачана: 1500×1500px');
+  };
+
+  const togglePlayPause = () => {
+    if (!audioRef.current) return;
+    
+    if (isPlaying) {
+      audioRef.current.pause();
+    } else {
+      audioRef.current.play();
+    }
+    setIsPlaying(!isPlaying);
+  };
+
+  useEffect(() => {
+    if (!audioRef.current) return;
+    
+    const audio = audioRef.current;
+    
+    const updateTime = () => setCurrentTime(audio.currentTime);
+    const updateDuration = () => setDuration(audio.duration);
+    const handleEnded = () => setIsPlaying(false);
+    
+    audio.addEventListener('timeupdate', updateTime);
+    audio.addEventListener('loadedmetadata', updateDuration);
+    audio.addEventListener('ended', handleEnded);
+    
+    return () => {
+      audio.removeEventListener('timeupdate', updateTime);
+      audio.removeEventListener('loadedmetadata', updateDuration);
+      audio.removeEventListener('ended', handleEnded);
+    };
+  }, []);
 
   const handleAudioUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -213,6 +278,31 @@ const Index = () => {
                       <p className="text-xs text-gray-500">Автоматически изменится до 1500×1500px</p>
                     </label>
                   </div>
+                  
+                  {uploadedCovers.length > 0 && (
+                    <div className="mt-4">
+                      <Label className="text-gray-300 mb-3 block text-sm">Загруженные обложки (клик = скачать)</Label>
+                      <div className="flex gap-3 overflow-x-auto pb-2">
+                        {uploadedCovers.map((cover) => (
+                          <div
+                            key={cover.id}
+                            onClick={() => selectCover(cover)}
+                            className={`flex-shrink-0 w-24 h-24 rounded-lg cursor-pointer transition-all hover:scale-105 ${
+                              selectedCoverId === cover.id
+                                ? 'ring-2 ring-[#FF6B00] ring-offset-2 ring-offset-[#16213E]'
+                                : 'opacity-60 hover:opacity-100'
+                            }`}
+                          >
+                            <img
+                              src={cover.url}
+                              alt="Cover"
+                              className="w-full h-full object-cover rounded-lg"
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div>
@@ -312,24 +402,45 @@ const Index = () => {
                   </div>
 
                   <div className="bg-[#0a0a0a] rounded-lg p-6 border border-[#EAEAEA]/10">
+                    <audio ref={audioRef} src={currentTrack.audio} className="hidden" />
+                    
                     <div className="flex items-center justify-between mb-4">
-                      <Label className="text-gray-300">Форма волны</Label>
-                      <Button variant="outline" size="sm" className="border-[#EAEAEA]/10 text-gray-300">
-                        <Icon name="Play" size={14} className="mr-1" />
-                        Прослушать
-                      </Button>
+                      <Label className="text-gray-300">Аудио плеер</Label>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-gray-400">
+                          {Math.floor(currentTime / 60)}:{Math.floor(currentTime % 60).toString().padStart(2, '0')} / {Math.floor(duration / 60)}:{Math.floor(duration % 60).toString().padStart(2, '0')}
+                        </span>
+                        <Button 
+                          onClick={togglePlayPause}
+                          variant="outline" 
+                          size="sm" 
+                          className="border-[#EAEAEA]/10 text-gray-300"
+                        >
+                          <Icon name={isPlaying ? "Pause" : "Play"} size={14} className="mr-1" />
+                          {isPlaying ? 'Пауза' : 'Играть'}
+                        </Button>
+                      </div>
                     </div>
-                    <div className="h-24 flex items-center justify-center gap-1 px-4">
-                      {Array.from({ length: 80 }).map((_, i) => (
-                        <div
-                          key={i}
-                          className="w-1 bg-[#FF6B00] rounded-full transition-all"
-                          style={{
-                            height: `${Math.random() * 60 + 20}%`,
-                            opacity: 0.3 + Math.random() * 0.7
-                          }}
-                        />
-                      ))}
+                    
+                    <div className="h-24 flex items-center justify-center gap-1 px-4 relative">
+                      {Array.from({ length: 80 }).map((_, i) => {
+                        const progress = duration > 0 ? currentTime / duration : 0;
+                        const barProgress = i / 80;
+                        const isActive = barProgress <= progress;
+                        
+                        return (
+                          <div
+                            key={i}
+                            className={`w-1 rounded-full transition-all ${
+                              isActive ? 'bg-[#FF6B00]' : 'bg-[#FF6B00]/30'
+                            }`}
+                            style={{
+                              height: `${Math.random() * 60 + 20}%`,
+                              opacity: isActive ? 0.8 + Math.random() * 0.2 : 0.3 + Math.random() * 0.3
+                            }}
+                          />
+                        );
+                      })}
                     </div>
                   </div>
 

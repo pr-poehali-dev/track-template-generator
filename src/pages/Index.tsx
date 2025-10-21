@@ -32,14 +32,6 @@ const Index = () => {
         continue;
       }
 
-      const fileSizeMB = file.size / (1024 * 1024);
-      const maxSizeMB = isAudio ? 50 : 10;
-      
-      if (fileSizeMB > maxSizeMB) {
-        toast.error(`${file.name} - слишком большой (${fileSizeMB.toFixed(1)} МБ). Максимум: ${maxSizeMB} МБ`);
-        continue;
-      }
-
       const uploadedFile: UploadedFile = {
         id: Date.now().toString() + i,
         name: file.name,

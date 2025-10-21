@@ -36,6 +36,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         }
     
     body_data = event.get('body', '')
+    is_base64_input = event.get('isBase64Encoded', False)
     
     if not body_data:
         return {
@@ -46,13 +47,16 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         }
     
     try:
-        audio_bytes = base64.b64decode(body_data)
+        if is_base64_input:
+            audio_bytes = base64.b64decode(body_data)
+        else:
+            audio_bytes = base64.b64decode(body_data)
     except Exception as e:
         return {
             'statusCode': 400,
             'headers': {'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json'},
             'isBase64Encoded': False,
-            'body': json.dumps({'error': f'Invalid base64 encoding: {str(e)}'})
+            'body': json.dumps({'error': f'Invalid data encoding: {str(e)}'})
         }
     
     try:

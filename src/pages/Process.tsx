@@ -62,42 +62,25 @@ const Process = () => {
     setFiles(prev => prev.map(f => f.id === file.id ? processedFile : f));
 
     try {
-      const reader = new FileReader();
-      
-      reader.onprogress = (event) => {
-        if (event.lengthComputable) {
-          const progress = Math.round((event.loaded / event.total) * 100);
-          setFiles(prev => prev.map(f => 
-            f.id === file.id ? { ...f, uploadProgress: progress } : f
-          ));
-        }
-      };
-      
-      const base64Promise = new Promise<string>((resolve) => {
-        reader.onload = () => {
-          const base64 = (reader.result as string).split(',')[1];
-          setFiles(prev => prev.map(f => 
-            f.id === file.id ? { ...f, uploadProgress: 100, processingProgress: 10 } : f
-          ));
-          resolve(base64);
-        };
-        reader.readAsDataURL(file.file);
-      });
-
-      const base64 = await base64Promise;
-      
       setFiles(prev => prev.map(f => 
-        f.id === file.id ? { ...f, processingProgress: 30 } : f
+        f.id === file.id ? { ...f, uploadProgress: 20 } : f
       ));
 
       if (file.type === 'audio') {
         setFiles(prev => prev.map(f => 
-          f.id === file.id ? { ...f, processingProgress: 50 } : f
+          f.id === file.id ? { ...f, processingProgress: 40 } : f
+        ));
+        
+        const arrayBuffer = await file.file.arrayBuffer();
+        const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
+        
+        setFiles(prev => prev.map(f => 
+          f.id === file.id ? { ...f, processingProgress: 60 } : f
         ));
         
         const response = await fetch('https://functions.poehali.dev/75884e87-b899-4bd2-824d-3b7356d69d69', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'text/plain' },
           body: base64
         });
 
@@ -115,12 +98,19 @@ const Process = () => {
         processedFile.info = data;
       } else {
         setFiles(prev => prev.map(f => 
-          f.id === file.id ? { ...f, processingProgress: 50 } : f
+          f.id === file.id ? { ...f, processingProgress: 40 } : f
+        ));
+        
+        const arrayBuffer = await file.file.arrayBuffer();
+        const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
+        
+        setFiles(prev => prev.map(f => 
+          f.id === file.id ? { ...f, processingProgress: 60 } : f
         ));
         
         const response = await fetch('https://functions.poehali.dev/e2626348-12c7-483d-8b73-dd5c187fb154', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'text/plain' },
           body: base64
         });
 

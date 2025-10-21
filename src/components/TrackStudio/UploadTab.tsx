@@ -20,6 +20,7 @@ interface UploadTabProps {
   onLyricsChange: (value: string) => void;
   onSelectCover: (cover: CoverImage) => void;
   onProcessTrack: () => void;
+  onShareToTelegram: () => void;
 }
 
 const UploadTab = ({
@@ -36,7 +37,9 @@ const UploadTab = ({
   onLyricsChange,
   onSelectCover,
   onProcessTrack,
+  onShareToTelegram,
 }: UploadTabProps) => {
+  const isFormComplete = coverFile && audioFile && trackName;
   return (
     <Card className="max-w-3xl mx-auto bg-[#16213E] border-[#EAEAEA]/10 p-8">
       <div className="space-y-8">
@@ -129,23 +132,36 @@ const UploadTab = ({
           <p className="text-xs text-gray-500 mt-2">Будет преобразован в моно-текст для копирования</p>
         </div>
 
-        <Button
-          onClick={onProcessTrack}
-          disabled={isProcessing || !coverFile || !audioFile || !trackName}
-          className="w-full bg-[#FF6B00] hover:bg-[#FF6B00]/90 text-white h-12 text-base font-medium disabled:opacity-50"
-        >
-          {isProcessing ? (
-            <>
-              <Icon name="Loader2" size={20} className="mr-2 animate-spin" />
-              Обработка...
-            </>
-          ) : (
-            <>
-              <Icon name="Check" size={20} className="mr-2" />
-              Обработать трек
-            </>
+        <div className="space-y-3">
+          <Button
+            onClick={onProcessTrack}
+            disabled={isProcessing || !coverFile || !audioFile || !trackName}
+            className="w-full bg-[#FF6B00] hover:bg-[#FF6B00]/90 text-white h-12 text-base font-medium disabled:opacity-50"
+          >
+            {isProcessing ? (
+              <>
+                <Icon name="Loader2" size={20} className="mr-2 animate-spin" />
+                Обработка...
+              </>
+            ) : (
+              <>
+                <Icon name="Check" size={20} className="mr-2" />
+                Обработать трек
+              </>
+            )}
+          </Button>
+
+          {isFormComplete && (
+            <Button
+              onClick={onShareToTelegram}
+              variant="outline"
+              className="w-full border-[#0088cc] text-[#0088cc] hover:bg-[#0088cc]/10 h-12 text-base font-medium"
+            >
+              <Icon name="Send" size={20} className="mr-2" />
+              Поделиться в Telegram
+            </Button>
           )}
-        </Button>
+        </div>
       </div>
     </Card>
   );

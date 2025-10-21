@@ -199,6 +199,20 @@ const Index = () => {
     toast.success(`Экспорт трека "${track.name}" начат`);
   };
 
+  const shareToTelegram = () => {
+    if (!coverFile || !audioFile || !trackName) return;
+
+    const monoLyrics = lyrics.replace(/\n+/g, ' ').replace(/\s+/g, ' ').trim();
+    
+    const text = `🎵 *${trackName}*\n\n${monoLyrics ? monoLyrics : 'Новый трек готов к релизу!'}\n\n📀 Формат: WAV Stereo, 44.1kHz\n🎨 Обложка: 1500×1500px`;
+    
+    const encodedText = encodeURIComponent(text);
+    const telegramUrl = `https://t.me/share/url?url=${encodeURIComponent(window.location.href)}&text=${encodedText}`;
+    
+    window.open(telegramUrl, '_blank');
+    toast.success('Открыт Telegram для отправки');
+  };
+
   return (
     <div className="min-h-screen bg-[#0a0a0a]">
       <div className="border-b border-[#16213E]/20 bg-[#16213E]">
@@ -258,6 +272,7 @@ const Index = () => {
               onLyricsChange={setLyrics}
               onSelectCover={selectCover}
               onProcessTrack={processTrack}
+              onShareToTelegram={shareToTelegram}
             />
           </TabsContent>
 
